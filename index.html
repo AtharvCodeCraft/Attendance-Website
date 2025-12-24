@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>11th & 12th Attendance System</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+body{margin:0;font-family:Arial;background:#0f172a}
+.header{background:#111827;color:white;text-align:center;padding:18px;font-size:24px}
+.container{width:90%;max-width:950px;margin:auto;margin-top:18px;padding:18px;background:white;border-radius:14px;box-shadow:0 0 25px rgba(255,255,255,0.08)}
+input,button,select{padding:12px;border-radius:10px;border:1px solid #ccc;font-size:15px}
+button{background:#2563eb;color:white;border:none;cursor:pointer}
+button:hover{background:#1d4ed8}
+table{width:100%;border-collapse:collapse;margin-top:20px}
+th,td{border:1px solid #ddd;padding:10px;text-align:center}
+th{background:#111827;color:white}
+.present{background:#16a34a;color:white;border-radius:5px}
+.absent{background:#dc2626;color:white;border-radius:5px}
+.tabBtn{background:#111827;margin-right:8px}
+.activeTab{background:#2563eb!important}
+.hide{display:none}
+.success{color:green;font-weight:bold}
+.reportCard{padding:10px;background:#f3f4f6;border-radius:10px;margin-top:15px;max-height:300px;overflow-y:auto}
+.footer{text-align:center;color:white;margin:20px}
+.lock{background:#6b7280!important}
+@media(max-width:768px){
+input,button,select{width:100%;margin-top:7px}
+table{display:block;overflow-x:auto;white-space:nowrap}
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">📚 11th & 12th Attendance System</div>
+
+<!-- LOGIN -->
+<div class="container" id="loginBox">
+<h2>Teacher Login</h2>
+<input id="email" placeholder="Enter Email"><br><br>
+<input id="pass" type="password" placeholder="Enter Password"><br><br>
+<button onclick="login()">Login</button>
+<p id="loginMsg" style="color:red"></p>
+</div>
+
+<!-- MAIN -->
+<div class="container hide" id="panel">
+<h2>Welcome, <span id="teacherName"></span></h2>
+
+<button class="tabBtn activeTab" onclick="showTab('attendanceTab')">Attendance</button>
+<button class="tabBtn" onclick="showTab('reportTab')">Reports</button>
+<button class="tabBtn" onclick="showTab('manageTab')">Add / Remove Students</button>
+
+<!-- ATTENDANCE -->
+<div id="attendanceTab">
+<br>
+<label>Standard:</label>
+<select id="classSel">
+<option>11th</option>
+<option>12th</option>
+</select>
+
+<label>Division:</label>
+<select id="divSel">
+<option>A</option>
+<option>B</option>
+</select>
+
+<br><br>
+<label>Select Date:</label>
+<input type="date" id="datePick">
+<br><br>
+
+<button onclick="loadAttendance()">Load Students</button>
+<button onclick="downloadCSV()">Download CSV</button>
+<button id="submitBtn" onclick="submitAttendance()">Submit</button>
+<button id="reopenBtn" class="hide" onclick="reopenAttendance()">Re-Open</button>
+
+<p id="statusMsg"></p>
+
+<table>
+<thead>
+<tr>
+<th>Roll</th>
+<th>Name</th>
+<th>Std</th>
+<th>Div</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<!-- REPORT -->
+<div id="reportTab" class="hide">
+<h3>📊 Attendance Report</h3>
+<label>Select Date:</label>
+<input type="date" id="reportDate">
+<button onclick="loadReport()">Load</button>
+<button onclick="downloadPDF()">Download PDF</button>
+<div id="reportResult" class="reportCard"></div>
+</div>
+
+<!-- MANAGE -->
+<div id="manageTab" class="hide">
+<h3>👨‍🎓 Add / Remove Students</h3>
+<label>Select Standard:</label>
+<select id="mClass" onchange="loadStudentList()">
+<option>11th</option>
+<option>12th</option>
+</select>
+
+<br><br>
+
+<input id="rollInput" placeholder="Roll Number">
+<input id="nameInput" placeholder="Student Name">
+<br><br>
+
+<button onclick="addStudent()">Add Student</button>
+
+<h3>Current Students</h3>
+<ul id="studentList"></ul>
+</div>
+
+</div>
+
+<div class="footer">Designed for You 😊</div>
+
+<script>
+// LOGIN
+const teachers=[
+ {email:"tejswini28@gmail.com",pass:"12345"},
+ {email:"teacher2@gmail.com",pass:"12345"}
+];
+let currentTeacher="";
+function login(){
+ let e=email.value,p=pass.value;
+ let t=teachers.find(x=>x.email==e && x.pass==p);
+ if(!t){loginMsg.innerText="Invalid Login";return;}
+ currentTeacher=e;
+ loginBox.classList.add("hide");
+ panel.classList.remove("hide");
+ teacherName.innerText=e;
+ loadStudentList();
+}
+
+// KEY
+function key(){
+ return currentTeacher+"_"+classSel.value+"_"+divSel.value+"_"+datePick.value;
+}
+
+// LOAD STUDENTS JSON + Local Storage Merge
+async function getStudents(std){
+ let file = std==="11th" ? "class11.json" : "class12.json";
+ const res = await fetch(file);
+ const jsonStudents = await res.json();
+
+ let localKey = std==="11th"?"local11":"local12";
+ let local = JSON.parse(localStorage.getItem(localKey)) || [];
+ return [...jsonStudents,...local];
+}
+
+// LOAD ATTENDANCE
+async function loadAttendance(){
+ if(datePick.value===""){alert("Select date");return;}
+ let baseList = await getStudents(classSel.value);
+
+ let saved=localStorage.getItem(key());
+ let list=saved?JSON.parse(saved):
+ baseList.map(s=>({
+ roll:s.roll,name:s.name,std:classSel.value,
+ div:divSel.value,status:"Present",submitted:false
+ }));
+
+ render(list);
+ checkSubmission();
+}
+
+function render(list){
+ tbody.innerHTML="";
+ list.forEach((s,i)=>{
+ tbody.innerHTML+=`
+<tr>
+<td>${s.roll}</td>
+<td>${s.name}</td>
+<td>${s.std}</td>
+<td>${s.div}</td>
+<td><button class="${s.status=='Present'?'present':'absent'}"
+onclick="toggle(${i})">${s.status}</button></td>
+</tr>`;
+ });
+ save();
+}
+
+// TOGGLE
+function toggle(i){
+ let saved=JSON.parse(localStorage.getItem(key()));
+ if(saved.some(x=>x.submitted))return;
+ saved[i].status=saved[i].status=="Present"?"Absent":"Present";
+ localStorage.setItem(key(),JSON.stringify(saved));
+ loadAttendance();
+}
+
+// SAVE
+function save(){
+ let rows=[];
+ document.querySelectorAll("#tbody tr").forEach(r=>{
+ rows.push({
+  roll:r.children[0].innerText,
+  name:r.children[1].innerText,
+  std:r.children[2].innerText,
+  div:r.children[3].innerText,
+  status:r.children[4].innerText.trim(),
+  submitted:false
+ });
+ });
+ localStorage.setItem(key(),JSON.stringify(rows));
+}
+
+// SUBMIT + LOCK
+function submitAttendance(){
+ let saved=JSON.parse(localStorage.getItem(key()));
+ saved.forEach(s=>s.submitted=true);
+ localStorage.setItem(key(),JSON.stringify(saved));
+ statusMsg.innerHTML="✔️ Submitted Successfully";
+ submitBtn.classList.add("lock");
+ reopenBtn.classList.remove("hide");
+}
+function reopenAttendance(){
+ let saved=JSON.parse(localStorage.getItem(key()));
+ saved.forEach(s=>s.submitted=false);
+ localStorage.setItem(key(),JSON.stringify(saved));
+ loadAttendance();
+}
+function checkSubmission(){
+ let saved=JSON.parse(localStorage.getItem(key()));
+ if(!saved)return;
+ if(saved.some(s=>s.submitted)){
+ submitBtn.classList.add("lock");
+ reopenBtn.classList.remove("hide");
+ statusMsg.innerHTML="✔️ Locked";
+}else{
+ submitBtn.classList.remove("lock");
+ reopenBtn.classList.add("hide");
+ statusMsg.innerHTML="";
+}
+}
+
+// REPORT
+function loadReport(){
+ let d=reportDate.value;
+ if(d==""){alert("Select date");return;}
+ let result="";
+ for(let i=0;i<localStorage.length;i++){
+ let k=localStorage.key(i);
+ if(k.includes(currentTeacher)&&k.includes(d)){
+ let data=JSON.parse(localStorage.getItem(k));
+ result+=`<b>${k}</b><br>`;
+ data.forEach(d=>result+=`${d.roll}. ${d.name} (${d.std}-${d.div}) - ${d.status}<br>`);
+ result+="<hr>";
+ }}
+ reportResult.innerHTML=result||"No Attendance Found";
+}
+
+// PDF
+function downloadPDF(){
+ const { jsPDF }=window.jspdf;
+ html2canvas(reportResult).then(canvas=>{
+ let pdf=new jsPDF("p","mm","a4");
+ let img=canvas.toDataURL("image/png");
+ let w=pdf.internal.pageSize.getWidth();
+ let h=(canvas.height*w)/canvas.width;
+ pdf.addImage(img,"PNG",0,10,w,h);
+ pdf.save("Attendance_Report.pdf");
+ });
+}
+
+// CSV
+function downloadCSV(){
+ let saved=JSON.parse(localStorage.getItem(key()));
+ if(!saved){alert("Take attendance first");return;}
+ let csv="Roll,Name,Std,Div,Status\n";
+ saved.forEach(s=>csv+=`${s.roll},${s.name},${s.std},${s.div},${s.status}\n`);
+ let blob=new Blob([csv],{type:"text/csv"});
+ let url=URL.createObjectURL(blob);
+ let a=document.createElement("a");
+ a.href=url;
+ a.download="Attendance.csv";
+ a.click();
+}
+
+// MANAGE STUDENTS PAGE
+function loadStudentList(){
+ let std=mClass.value==="11th"?"class11.json":"class12.json";
+ fetch(std).then(r=>r.json()).then(base=>{
+ let localKey=mClass.value==="11th"?"local11":"local12";
+ let local=JSON.parse(localStorage.getItem(localKey))||[];
+ let all=[...base,...local];
+ studentList.innerHTML="";
+ all.forEach(s=>{
+ studentList.innerHTML+=`<li>${s.roll} - ${s.name} 
+ <button onclick="removeStudent(${s.roll})">Remove</button></li>`;
+ });
+ });
+}
+
+function addStudent(){
+ let stdKey=mClass.value==="11th"?"local11":"local12";
+ let local=JSON.parse(localStorage.getItem(stdKey))||[];
+ local.push({roll:Number(rollInput.value),name:nameInput.value});
+ localStorage.setItem(stdKey,JSON.stringify(local));
+ alert("Student Added");
+ rollInput.value="";nameInput.value="";
+ loadStudentList();
+}
+
+function removeStudent(roll){
+ let stdKey=mClass.value==="11th"?"local11":"local12";
+ let local=JSON.parse(localStorage.getItem(stdKey))||[];
+ local=local.filter(s=>s.roll!=roll);
+ localStorage.setItem(stdKey,JSON.stringify(local));
+ loadStudentList();
+}
+
+// Tabs
+function showTab(tab){
+ attendanceTab.classList.add("hide");
+ reportTab.classList.add("hide");
+ manageTab.classList.add("hide");
+ document.getElementById(tab).classList.remove("hide");
+ document.querySelectorAll(".tabBtn").forEach(b=>b.classList.remove("activeTab"));
+ event.target.classList.add("activeTab");
+}
+</script>
+</body>
+</html>
