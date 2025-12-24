@@ -21,7 +21,7 @@ th,td{border:1px solid #ddd;padding:10px;text-align:center}
 th{background:#111827;color:white}
 .present{background:#16a34a;color:white;border-radius:5px}
 .absent{background:#dc2626;color:white;border-radius:5px}
-.tabBtn{background:#111827;margin-right:8px}
+.tabBtn{background:#111827;margin-right:8px} 
 .activeTab{background:#2563eb!important}
 .hide{display:none}
 .success{color:green;font-weight:bold}
@@ -266,6 +266,9 @@ function loadReport(){
  result+="<hr>";
  }}
  reportResult.innerHTML=result||"No Attendance Found";
+ <button style="background:#dc2626" onclick="deleteReport()">Delete Report</button>
+<div id="reportTab" class="hide">
+
 }
 
 // PDF
@@ -365,6 +368,7 @@ function showTab(tab){
 </script>
 </body>
 </html>
+
 
 
 
