@@ -328,6 +328,31 @@ function removeStudent(roll){
  loadStudentList();
 }
 
+ /* ---------- DELETE REPORT (NEW) ---------- */
+function deleteReport(){
+ let d=reportDate.value;
+ if(d==""){alert("Select date");return;}
+
+ let deleted=false;
+
+ for(let i=localStorage.length-1;i>=0;i--){
+  let k=localStorage.key(i);
+  if(k.includes(currentTeacher) && k.includes(d)){
+   localStorage.removeItem(k);
+   deleted=true;
+  }
+ }
+
+ if(deleted){
+  reportResult.innerHTML="";
+  deleteMsg.style.color="green";
+  deleteMsg.innerHTML="✔️ Report Deleted Successfully";
+ }else{
+  deleteMsg.style.color="red";
+  deleteMsg.innerHTML="❌ No report found for this date";
+ }
+}
+
 // Tabs
 function showTab(tab){
  attendanceTab.classList.add("hide");
@@ -340,4 +365,5 @@ function showTab(tab){
 </script>
 </body>
 </html>
+
 
